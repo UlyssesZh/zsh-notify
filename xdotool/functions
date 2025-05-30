@@ -69,7 +69,34 @@ function zsh-notify() {
             message="${message#* }"
     fi
 
-    notify-send -a "${=app_name}" -t $expire_time ${=icon_option} "$title" -- "$message"
+    local wid
+    zstyle -s ':notify:' window-id wid
+
+    if zstyle -t ':notify:' raise-at-click; then
+        actions="-A default=X"
+    fi
+    zstyle -s ':notify:' error-log error_log
+    app_name="$app_name" \
+    expire_time="$expire_time" \
+    icon_option="$icon_option" \
+    title="$title" \
+    actions="$actions" \
+    message="$message" \
+    wid="$wid" \
+    error_log="$error_log" \
+    nohup zsh -c '
+        (
+            [[ "$(
+                notify-send \
+                -a "${=app_name}" \
+                -t $expire_time \
+                ${=icon_option} \
+                "$title" \
+                ${=actions} \
+                -- "$message"
+            )" = default ]] && wmctrl -ia "$wid"
+        ) 2>&1 | sed 's/^/zsh-notify: /' >> "$error_log"
+    ' > /dev/null 2>&1 &
 
     function play-sound {
         if command -v paplay > /dev/null 2>&1; then
@@ -93,10 +120,6 @@ function zsh-notify() {
     fi
 
     if command -v wmctrl > /dev/null 2>&1; then
-        local wid
-
-        zstyle -s ':notify:' window-id wid
-
         if zstyle -t ':notify:' activate-terminal; then
             wmctrl -ia $wid
         elif ! (zstyle -t ':notify:' disable-urgent); then
